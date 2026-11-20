@@ -77,6 +77,24 @@ def test_daemon_slot_suppresses_orphan_flag(tmp_path: Path) -> None:
     assert verdict(inst)[0] == "keep"
 
 
+def test_ondemand_slot_is_owned_not_orphan(tmp_path: Path) -> None:
+    profile = tmp_path / "profiles" / "xwatch"
+    profile.mkdir(parents=True)
+    slot = Slot(name="x-watch", expect="ondemand", port=9222, user_data_dir=str(profile))
+    procs = [
+        Proc(
+            210,
+            1,
+            1000.0,
+            SHELL,
+            (SHELL, f"--user-data-dir={profile}", "--remote-debugging-port=9222"),
+        ),
+    ]
+    [inst] = collect_instances(procs, [slot], [tmp_path / "Chrome"], now=2000.0)
+    assert ORPHAN not in inst.flags
+    assert verdict(inst)[0] == "keep"
+
+
 def test_duplicate_user_data_dir(tmp_path: Path) -> None:
     profile = tmp_path / "profiles" / "shared"
     profile.mkdir(parents=True)

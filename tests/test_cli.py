@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from chrome_orchestrator.cli import _find_instance, status_payload
+import pytest
+
+from chrome_orchestrator import cli
+from chrome_orchestrator.cli import _find_instance, main, status_payload
 from chrome_orchestrator.config import Config
 from chrome_orchestrator.model import Instance, Slot
 
@@ -59,3 +62,41 @@ def test_selectors_resolve_by_pid_prefix_and_slot() -> None:
     assert _find_instance(instances, "aaaa").id == "aaaaaaaaaaaa"
     assert _find_instance(instances, "scraper").root_pid == 200
     assert _find_instance(instances, "nope") is None
+
+
+def test_spawn_unknown_slot_exits_before_touching_processes(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CHOR_CONFIG", str(tmp_path / "missing.toml"))
+    assert main(["spawn", "--slot", "nope"]) == 1
+    assert "没有槽位 nope" in capsys.readouterr().err
+
+
+def test_reap_dry_run_sends_no_signal(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import os
+
+    import psutil
+
+    pid = os.getpid()
+    inst = Instance(
+        id="abcdef123456",
+        kind="headless-shell",
+        binary="/tmp/chrome-headless-shell",
+        user_data_dir="/tmp/profiles/x",
+        port=None,
+        root_pid=pid,
+        ppid=1,
+        started_at=psutil.Process(pid).create_time(),
+        rss_kb=10 * 1024,
+    )
+    monkeypatch.setattr(cli, "scan_processes", lambda: [])
+    monkeypatch.setattr(cli, "collect_instances", lambda *a, **k: [inst])
+    monkeypatch.setenv("CHOR_DATA_DIR", str(tmp_path))
+
+    assert main(["reap", "--pid", str(pid)]) == 3
+    out = capsys.readouterr().out
+    assert f"将回收 PID {pid}" in out
+    assert "没有发送任何信号" in out
+    assert psutil.pid_exists(pid)

@@ -1,5 +1,10 @@
 # Copy to ~/.config/chrome-orchestrator/slots.toml and edit there.
 # This file is an example only: keep real ports, paths and project names out of git.
+#
+# A slot is both the place `chor spawn` starts and the owner `chor reap` trusts:
+#   daemon   — expected to stay up; reap needs --allow-daemon
+#   ondemand — started for a task, safe to reap when idle
+#   manual   — human-started debugging; reap is allowed but never automatic
 schema_version = 1
 
 # Directories that belong to the daily browser. An instance pointing

@@ -38,6 +38,8 @@ def verdict(inst: Instance) -> tuple[str, str]:
         return "reap", "确认没有在跑的任务后回收"
     if inst.slot and inst.slot.expect == "daemon":
         return "keep", "常驻槽位，按设计保活"
+    if inst.slot and inst.slot.expect == "ondemand":
+        return "keep", "按需槽位，任务结束可以用 chor reap 停掉"
     if is_daily(inst):
         return "keep", "日常浏览器"
     return "ask", "有调试口或独立 profile，需要人工确认用途"
@@ -79,6 +81,8 @@ def render(
         why = "日常浏览器，PPID=1 属正常（由系统启动）"
     elif inst.slot and inst.slot.expect == "daemon":
         why = "常驻槽位，任务结束后按设计不退出"
+    elif inst.slot and inst.slot.expect == "ondemand":
+        why = "按需槽位，由 chor spawn 拉起，用不到时可以回收"
     elif inst.ppid == 1:
         why = "父进程退出后没人回收"
     else:
