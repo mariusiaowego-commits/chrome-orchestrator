@@ -4,15 +4,14 @@
 
 ## 当前版本
 
-`0.3.0` — M3 spawn/reap（本分支待合并）
+`0.3.0` — M3 spawn/reap（PR #5；合并后打 tag `v0.3.0`）
 
 ## 仓库状态
 
 - 本地：`~/dev/chrome-orchestrator`
 - 远程：`https://github.com/mariusiaowego-commits/chrome-orchestrator`（公开）
-- 分支：`feat/m3-spawn-reap`
-- 最近提交（main）：`6b7513a`
-- 未提交改动：见 `git status`（M3 分支内）
+- 主分支：`main`
+- 未提交改动：无（PR #5 合并后工作区干净）
 
 ## 最近验证
 
@@ -21,6 +20,7 @@
 .venv/bin/ruff check .            All checks passed!
 .venv/bin/ruff format --check .   23 files already formatted
 bash scripts/check_pii.sh         check_pii: clean
+GitHub Actions (PR #5)            pass
 ```
 
 实机（临时槽位 `smoke`，端口 9333，profile `/private/tmp/chor-smoke/profile`）：
@@ -46,11 +46,12 @@ chor history smoke                   → spawned / observed / reaped
 |---|---|---|
 | M0 | 只读巡检、槽位、台账、数据契约、PII 拦截 | 完成 |
 | M1 | 登记 `external` 端口，uniservice-bar 零改动可见 | 完成 |
-| M2 | bar Chrome 分区（只读看板） | PR #18 待合并（bar 仓） |
-| M3 | `chor spawn` 唯一启动入口 + `chor reap` 安全回收 | 本分支待合并 |
+| M2 | bar Chrome 分区（只读看板） | 完成（bar PR #18） |
+| M3 | `chor spawn` 唯一启动入口 + `chor reap` 安全回收 | 完成（PR #5） |
 
-## M2 补充
+## 已知约束
 
-`chor status --json` 里 `instances` 用 `id`、`slots` 用 `name`，两者结构不同。
-bar 端曾把两者塞进同一个 Codable（`key` 取 id），解码必失败；已拆成
-`ChromeInstance` / `ChromeSlot` 两个模型，并加 `Tests/chrome_board_smoke.swift` 兜住契约漂移。
+- `chor status --json` 里 `instances` 用 `id`、`slots` 用 `name`，两者结构不同；
+  bar 端用 `ChromeInstance` / `ChromeSlot` 两套模型，`Tests/chrome_board_smoke.swift` 兜契约漂移。
+- `uv.lock` 里项目版本仍是 0.1.0（pypi TLS 抖动导致 `uv lock` 刷新失败），不影响安装。
+- `reap` 对「没有独立 profile」的实例默认拦截：这类实例视觉上与日常浏览器无法区分。
