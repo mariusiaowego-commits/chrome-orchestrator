@@ -11,7 +11,7 @@
 - 本地：`~/dev/chrome-orchestrator`
 - 远程：`https://github.com/mariusiaowego-commits/chrome-orchestrator`（公开）
 - 分支：`main`
-- 初始提交：`8feb571`
+- 最近提交：`f39de2b`
 - 未提交改动：无
 
 ## 最近验证
@@ -21,14 +21,14 @@
 .venv/bin/ruff check .            All checks passed!
 .venv/bin/ruff format --check .   16 files already formatted
 bash scripts/check_pii.sh         check_pii: clean
+GitHub Actions (main)            success — PII / ruff / pytest on Python 3.11
 ```
 
 本机实跑：`chor ls` 只识别 1 个 `system-chrome`；`chor doctor` 报 2 个陈旧 SingletonLock。
 
 ## 阻塞
 
-GitHub Actions 工作流文件无法推送：本机 git 凭据只有 `repo` scope，
-缺少 `workflow`。恢复方式：为推送凭据补 `workflow` scope 后添加 `.github/workflows/ci.yml`。
+无。CI 已启用并通过（run `f39de2b`）。
 
 ## 路线
 
