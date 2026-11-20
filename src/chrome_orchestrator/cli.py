@@ -2,16 +2,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 import unicodedata
 from collections.abc import Sequence
 from datetime import datetime
 
-from . import ledger
+from . import ledger, reap, spawn
 from .cdp import list_pages
 from .config import Config, load_config
-from .model import DUPLICATE_UDD, REAL_PROFILE_WRITE, Instance
+from .model import DUPLICATE_UDD, REAL_PROFILE_WRITE, Event, Instance
 from .registry_sync import apply_actions, desired_entries, find_binary, load_status, plan
 from .scan import ScanError, collect_instances, scan_processes, stale_locks
 from .story import VERDICT_LABELS, display_path, fmt_dur, render, verdict
@@ -27,6 +28,20 @@ def build_parser() -> argparse.ArgumentParser:
     status.add_argument("--json", action="store_true", help="emit JSON (the only format for now)")
     explain = sub.add_parser("explain", help="plain-language profile of one instance")
     explain.add_argument("selector", help="pid, instance id prefix, or slot name")
+    spawn_cmd = sub.add_parser("spawn", help="start the one Chrome a slot owns")
+    spawn_cmd.add_argument("--slot", required=True, help="slot name from slots.toml")
+    spawn_cmd.add_argument("--headless", action="store_true", help="use --headless=new")
+    spawn_cmd.add_argument("--json", action="store_true", help="machine-readable result")
+    spawn_cmd.add_argument("--wait", type=float, default=20.0, help="seconds to wait for CDP")
+    reap_cmd = sub.add_parser("reap", help="stop one instance: SIGTERM, then SIGKILL")
+    reap_cmd.add_argument("--pid", type=int, required=True, help="root pid from chor ls")
+    reap_cmd.add_argument("--yes", action="store_true", help="actually send signals")
+    reap_cmd.add_argument("--json", action="store_true", help="machine-readable result")
+    reap_cmd.add_argument("--grace", type=float, default=8.0, help="SIGTERM grace seconds")
+    reap_cmd.add_argument(
+        "--allow-real-profile", action="store_true", help="allow reaping a real Chrome profile"
+    )
+    reap_cmd.add_argument("--allow-daemon", action="store_true", help="allow reaping a daemon slot")
     sub.add_parser("doctor", help="stale locks, polluted profiles, duplicate user-data-dirs")
     history = sub.add_parser("history", help="ledger events for one slot")
     history.add_argument("slot")
@@ -51,6 +66,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.cmd == "registry":
         return _registry_sync(cfg, apply=args.apply, as_json=args.json)
+    if args.cmd == "spawn":
+        return _spawn(cfg, args)
 
     now = time.time()
     try:
@@ -77,6 +94,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.cmd == "doctor":
         _print_doctor(instances, cfg)
         return 0
+    if args.cmd == "reap":
+        return _reap(cfg, instances, args, now)
     return 2
 
 
@@ -130,6 +149,105 @@ def _explain(instances: Sequence[Instance], cfg: Config, selector: str, now: flo
     events = ledger.load(cfg.data_dir)
     print(render(target, events, now, pages))
     return 0
+
+
+def _spawn(cfg: Config, args: argparse.Namespace) -> int:
+    slot = cfg.slot_by_name(args.slot)
+    if slot is None:
+        known = "、".join(s.name for s in cfg.slots) or "（未配置任何槽位）"
+        print(f"chor: 没有槽位 {args.slot}；已知槽位：{known}", file=sys.stderr)
+        return 1
+    try:
+        result = spawn.spawn(
+            slot,
+            cfg,
+            headless=args.headless,
+            wait=args.wait,
+            record=not args.no_record,
+        )
+    except spawn.SpawnError as exc:
+        print(f"chor: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+    print(f"已启动 {slot.name} · PID {result['pid']} · :{result['port']}（调试口已就绪）")
+    print(f"  profile  {display_path(result['user_data_dir'])}")
+    print(f"  程序     {result['binary']}")
+    print(f"  调用方   {result['caller']}")
+    print("  说明     独立 profile、独立会话；关掉终端也不会退出，用 chor reap 回收")
+    return 0
+
+
+def _reap(cfg: Config, instances: Sequence[Instance], args: argparse.Namespace, now: float) -> int:
+    try:
+        reap_plan = reap.plan(
+            args.pid,
+            instances,
+            real_roots=cfg.real_roots,
+            now=now,
+            allow_real_profile=args.allow_real_profile,
+            allow_daemon=args.allow_daemon,
+        )
+    except reap.ReapError as exc:
+        print(f"chor: {exc}", file=sys.stderr)
+        return 1
+
+    if not args.yes:
+        print(_describe_plan(reap_plan))
+        print("\n以上是预演，没有发送任何信号；确认后加 --yes 再跑一次。")
+        return 3
+
+    try:
+        result = reap.apply(reap_plan, grace=args.grace)
+    except reap.ReapError as exc:
+        print(f"chor: {exc}", file=sys.stderr)
+        return 1
+    if not args.no_record:
+        ledger.append(
+            [
+                Event(
+                    ts=time.time(),
+                    event="reaped",
+                    instance_id=_instance_id_of(instances, args.pid),
+                    pid=args.pid,
+                    slot=reap_plan.slot,
+                    caller=os.environ.get("CHOR_CALLER"),
+                    note=f"escalated={result['escalated']} remaining={len(result['remaining'])}",
+                )
+            ],
+            cfg.data_dir,
+        )
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+    how = "SIGTERM 后升级 SIGKILL" if result["escalated"] else "SIGTERM 正常退出"
+    print(f"已回收 PID {args.pid}（{how}），含 {len(result['signalled'])} 个进程")
+    if result["remaining"]:
+        print(f"  ! 仍在运行：{result['remaining']}")
+        return 1
+    return 0
+
+
+def _describe_plan(plan: reap.ReapPlan) -> str:
+    title = f"PID {plan.pid} · {plan.slot or '无槽位'} · {plan.kind}"
+    lines = [
+        f"将回收 {title}，已运行 {fmt_dur(plan.uptime_seconds)}，占用 {plan.rss_mb:.0f}M",
+        f"  profile    {display_path(plan.user_data_dir) or '未指定（Chrome 默认目录）'}",
+        f"  子进程     {plan.helper_count} 个（渲染/GPU/网络等，会一起退出）",
+    ]
+    if plan.pages:
+        lines.append(f"  正在打开   {len(plan.pages)} 个页面：")
+        for page in plan.pages[:5]:
+            lines.append(f"    - {page['title'] or '（无标题）'} — {page['url']}")
+    else:
+        lines.append("  正在打开   读不到调试口（可能没开端口，或已卡死）")
+    lines.append("  动作       SIGTERM 让 Chrome 自己落盘，宽限后仍未退出则 SIGKILL")
+    return "\n".join(lines)
+
+
+def _instance_id_of(instances: Sequence[Instance], pid: int) -> str:
+    return next((i.id for i in instances if i.root_pid == pid), "")
 
 
 def _find_instance(instances: Sequence[Instance], selector: str) -> Instance | None:

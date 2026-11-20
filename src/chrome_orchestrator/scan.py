@@ -68,12 +68,14 @@ def collect_instances(
             flags.append(REAL_PROFILE_WRITE)
         if udd and udd_counts[udd] > 1:
             flags.append(DUPLICATE_UDD)
-        if proc.ppid == 1 and (udd or port) and not (slot and slot.expect == "daemon"):
+        # A slot is a declared owner: chor spawn detaches into ppid 1 by design,
+        # so "detached" alone must not mean "nobody owns this".
+        if proc.ppid == 1 and (udd or port) and not slot:
             flags.append(ORPHAN)
 
         instances.append(
             Instance(
-                id=_instance_id(kind, udd, proc),
+                id=instance_id(kind, udd, proc.create_time, proc.exe),
                 kind=kind,
                 binary=proc.exe,
                 user_data_dir=udd,
@@ -117,8 +119,9 @@ def stale_locks(real_roots: Sequence[Path]) -> list[dict]:
     return found
 
 
-def _instance_id(kind: str, udd: str | None, proc: Proc) -> str:
-    seed = f"{kind}|{udd or proc.exe}|{proc.create_time:.0f}"
+def instance_id(kind: str, udd: str | None, started_at: float, fallback: str = "") -> str:
+    """Stable id for one run of an instance: same profile restarted gets a new id."""
+    seed = f"{kind}|{udd or fallback}|{started_at:.0f}"
     return hashlib.sha1(seed.encode()).hexdigest()[:12]
 
 

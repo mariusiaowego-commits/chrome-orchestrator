@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chrome-orchestrator"
-version = "0.2.0"
+version = "0.3.0"
 description = "Classify, attribute and safely reap local Chrome instances on macOS."
 readme = "README.md"
 requires-python = ">=3.11"
