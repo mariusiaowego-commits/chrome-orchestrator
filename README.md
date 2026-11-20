@@ -50,8 +50,8 @@ v0.1 只读：分类、展示、记账。不杀进程、不启动进程、不修
 
 - 仓库只放通用代码、示例配置与合成测试数据。
 - 运行期数据写入 `~/Library/Application Support/chrome-orchestrator/`。
-- `scripts/check_pii.sh` 在 pre-commit 与 CI 中拦截家目录绝对路径、用户名、
-  主机名与常见 token 前缀；命中即失败。
+- `scripts/check_pii.sh` 在 pre-commit 中拦截家目录绝对路径、用户名、
+  主机名与常见 token 前缀；命中即失败。GitHub Actions 配置待补（受 token scope 限制）。
 - 输出里的家目录统一缩写成 `~/`，不打印主机名。
 
 ## 数据契约

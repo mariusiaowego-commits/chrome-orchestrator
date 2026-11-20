@@ -9,8 +9,9 @@
 ## 仓库状态
 
 - 本地：`~/dev/chrome-orchestrator`
-- 远程：未创建（等 `gh auth login` 恢复后建公开仓）
+- 远程：`https://github.com/mariusiaowego-commits/chrome-orchestrator`（公开）
 - 分支：`main`
+- 初始提交：`8feb571`
 - 未提交改动：无
 
 ## 最近验证
@@ -26,8 +27,8 @@ bash scripts/check_pii.sh         check_pii: clean
 
 ## 阻塞
 
-`gh` 令牌失效（`The token in keyring is invalid`），无法创建远程仓与 PR。
-恢复方式：`gh auth login -h github.com`。
+GitHub Actions 工作流文件无法推送：本机 git 凭据只有 `repo` scope，
+缺少 `workflow`。恢复方式：为推送凭据补 `workflow` scope 后添加 `.github/workflows/ci.yml`。
 
 ## 路线
 
