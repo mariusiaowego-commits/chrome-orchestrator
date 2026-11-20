@@ -56,3 +56,14 @@ Chrome 实例没有稳定端口，核心资源是 profile 互斥与进程树生�
 - **M2**：`uniservice-bar` 增加 Chrome 分区，读 `chor status --json`；回收动作（CDP
   `Browser.close` → 组 SIGTERM → SIGKILL）。
 - **M3**：`chor spawn --slot <name>` 作为唯一启动入口，写入归属台账。
+
+## M1 桥接规则
+
+`chor registry sync` 只做三件事，全部通过 `uniservice add --external` 官方入口：
+
+1. 槽位有端口、注册表没有 → 登记（`chrome-orchestrator.<slot>`）。
+2. 端口与注册表不一致 → 报冲突，不自动改。
+3. 注册表有、槽位没有 → 只报告，不自动删（删除是整个项目级操作，需人工）。
+
+登记 `external` 的含义是「这个端口有主，uniservice 不要启停它」。上下线状态仍由
+uniservice 自己探测端口得出，因此不会产生「注册表说在跑、其实没跑」的漂移。
