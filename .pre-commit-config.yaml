@@ -1,0 +1,13 @@
+repos:
+  - repo: local
+    hooks:
+      - id: check-pii
+        name: check for machine-specific data
+        entry: scripts/check_pii.sh
+        language: system
+        pass_filenames: false
+      - id: ruff
+        name: ruff
+        entry: uv run ruff check .
+        language: system
+        pass_filenames: false

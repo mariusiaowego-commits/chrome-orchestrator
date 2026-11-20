@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+*.egg-info/
+
+# runtime data and personal config never belong in a public repo
+events.jsonl*
+seen.json
+*.log
+*.local.toml
+slots.toml
+data/
+.DS_Store

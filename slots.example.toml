@@ -1,0 +1,20 @@
+# Copy to ~/.config/chrome-orchestrator/slots.toml and edit there.
+# This file is an example only: keep real ports, paths and project names out of git.
+schema_version = 1
+
+# Directories that belong to the daily browser. An instance pointing
+# --user-data-dir at one of these is writing into the user's real profile.
+real_user_data_roots = ["~/Library/Application Support/Google/Chrome"]
+
+[[slot]]
+name = "example-scraper"
+purpose = "example daily scrape (captcha-gated source)"
+owner = "example-project"
+expect = "daemon"          # daemon | ondemand | manual
+port = 9222
+user_data_dir = "~/chrome-profiles/example-scraper"
+
+[[slot]]
+name = "example-manual"
+purpose = "manual debugging window"
+expect = "manual"
