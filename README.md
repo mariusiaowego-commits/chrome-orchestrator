@@ -41,6 +41,7 @@ cp slots.example.toml ~/.config/chrome-orchestrator/slots.toml
 | `chor status --json` | 稳定数据契约，供 uniservice-bar / 静态页消费 |
 | `chor doctor` | 陈旧 SingletonLock、真实 profile 目录被写、同 profile 多实例 |
 | `chor history <slot>` | 台账事件流 |
+| `chor registry sync [--apply]` | 把带端口的槽位登记成 uniservice 的 `external` 条目 |
 
 ## 只读保证（v0.1）
 

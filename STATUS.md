@@ -4,7 +4,7 @@
 
 ## 当前版本
 
-`0.1.0` — M0 只读巡检（未发布）
+`0.2.0` — M1 uniservice 桥接（未发布）
 
 ## 仓库状态
 
@@ -25,6 +25,8 @@ GitHub Actions (main)            success — PII / ruff / pytest on Python 3.11
 ```
 
 本机实跑：`chor ls` 只识别 1 个 `system-chrome`；`chor doctor` 报 2 个陈旧 SingletonLock。
+`chor registry sync --apply` 已登记 2 条 external 条目（9223 / 9224）；9222 因被
+`chrome-debug.headless` 占用而跳过。
 
 ## 阻塞
 
@@ -35,6 +37,6 @@ GitHub Actions (main)            success — PII / ruff / pytest on Python 3.11
 | 里程碑 | 内容 | 状态 |
 |---|---|---|
 | M0 | 只读巡检、槽位、台账、数据契约、PII 拦截 | 完成 |
-| M1 | 登记 `external` 端口，uniservice-bar 零改动可见 | 待开始 |
+| M1 | 登记 `external` 端口，uniservice-bar 零改动可见 | 完成 |
 | M2 | bar Chrome 分区 + 安全回收 | 待开始 |
 | M3 | `chor spawn` 唯一启动入口 | 待开始 |

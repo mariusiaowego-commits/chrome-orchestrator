@@ -12,6 +12,7 @@ from . import ledger
 from .cdp import list_pages
 from .config import Config, load_config
 from .model import DUPLICATE_UDD, REAL_PROFILE_WRITE, Instance
+from .registry_sync import apply_actions, desired_entries, find_binary, load_status, plan
 from .scan import ScanError, collect_instances, scan_processes, stale_locks
 from .story import VERDICT_LABELS, display_path, fmt_dur, render, verdict
 
@@ -30,6 +31,11 @@ def build_parser() -> argparse.ArgumentParser:
     history = sub.add_parser("history", help="ledger events for one slot")
     history.add_argument("slot")
     sub.add_parser("slots", help="configured slots")
+    registry = sub.add_parser("registry", help="bridge slot ports into uniservice")
+    registry_sub = registry.add_subparsers(dest="registry_cmd", required=True)
+    sync = registry_sub.add_parser("sync", help="register slot ports as external entries")
+    sync.add_argument("--apply", action="store_true", help="write to the uniservice registry")
+    sync.add_argument("--json", action="store_true", help="machine-readable plan/result")
     return parser
 
 
@@ -43,6 +49,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.cmd == "history":
         _print_history(cfg, args.slot)
         return 0
+    if args.cmd == "registry":
+        return _registry_sync(cfg, apply=args.apply, as_json=args.json)
 
     now = time.time()
     try:
@@ -192,6 +200,60 @@ def _print_slots(cfg: Config) -> None:
     for slot in cfg.slots:
         port = f":{slot.port}" if slot.port else "无端口"
         print(f"{slot.name}  {port}  {slot.expect}  {slot.purpose}")
+
+
+def _registry_sync(cfg: Config, *, apply: bool, as_json: bool) -> int:
+    binary = find_binary()
+    if binary is None:
+        print("chor: 找不到 uniservice，可用 CHOR_UNISERVICE_BIN 指定路径", file=sys.stderr)
+        return 2
+    desired = desired_entries(cfg)
+    if not desired:
+        print("chor: 没有带端口的槽位，先补 slots.toml", file=sys.stderr)
+        return 1
+    try:
+        actions = plan(desired, load_status(binary))
+    except (OSError, RuntimeError, ValueError) as exc:
+        print(f"chor: {exc}", file=sys.stderr)
+        return 2
+
+    if as_json and not apply:
+        print(json.dumps({"actions": actions}, ensure_ascii=False, indent=2))
+        return 0
+    _print_actions(actions)
+    if not actions:
+        return 0
+    if not apply:
+        print("\n以上是预演；加 --apply 才写入 uniservice 注册表。")
+        return 0
+
+    cfg.data_dir.mkdir(parents=True, exist_ok=True)
+    results = apply_actions(binary, actions, cfg.data_dir)
+    if as_json:
+        print(json.dumps({"actions": actions, "results": results}, ensure_ascii=False, indent=2))
+    else:
+        for result in results:
+            state = "ok" if result.get("ok") else ("skipped" if result.get("skipped") else "failed")
+            print(f"  {result.get('service')}: {state} {result.get('output', '')}".rstrip())
+    return 0 if all(r.get("ok") or r.get("skipped") for r in results) else 1
+
+
+def _print_actions(actions: Sequence[dict]) -> None:
+    if not actions:
+        print("注册表已与槽位一致，无需改动")
+        return
+    for action in actions:
+        if action["action"] == "add":
+            print(f"+ {action['service']}  :{action['port']}  登记为 external")
+        elif action["action"] == "conflict":
+            print(
+                f"! {action['service']}  配置为 :{action['port']}，"
+                f"注册表里是 :{action['registered_port']}（需人工处理，不自动改）"
+            )
+        elif action["action"] == "port-taken":
+            print(f"! {action['service']}  :{action['port']} 已被 {action['owner']} 占用，跳过")
+        else:
+            print(f"- {action['service']}  :{action['port']}  注册表有、槽位里没有（不自动删）")
 
 
 def _print_status_summary(instances: Sequence[Instance]) -> None:
